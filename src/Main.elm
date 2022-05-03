@@ -58,12 +58,9 @@ view model =
         code =
             Fixture.fixture
 
-        entrypoints =
-            parseEntrypoints code
-
         graph =
-            code
-                |> parse
+            parseEntrypoints code
+                |> List.foldl prune (parse code)
                 |> makeGraph
 
         dot =
@@ -98,24 +95,19 @@ view model =
             , Html.Attributes.style "display" "flex"
             ]
             []
-        , Html.div
-            [ Html.Attributes.style "position" "absolute"
-            , Html.Attributes.style "top" "0"
-            , Html.Attributes.style "left" "0"
-            , Html.Attributes.style "background" "white"
-            , Html.Attributes.style "padding" "1em"
-            ]
-            [ entrypoints
-                |> Debug.toString
-                |> Html.text
-            ]
+
+        -- , Html.div
+        --     [ Html.Attributes.style "position" "absolute"
+        --     , Html.Attributes.style "top" "0"
+        --     , Html.Attributes.style "left" "0"
+        --     , Html.Attributes.style "background" "white"
+        --     , Html.Attributes.style "padding" "1em"
+        --     ]
+        --     [ entrypoints
+        --         |> Debug.toString
+        --         |> Html.text
+        --     ]
         ]
-
-
-type alias Function =
-    { name : String
-    , references : List String
-    }
 
 
 functionRegex : Regex
@@ -139,18 +131,19 @@ entrypointsRegex =
         |> Maybe.withDefault Regex.never
 
 
-parse : String -> List Function
+parse : String -> Dict String (Set String)
 parse string =
     Regex.find functionRegex string
         |> List.filterMap
             (\match ->
                 case match.submatches of
                     [ Just name, Just body ] ->
-                        Just { name = name, references = parseReferences body }
+                        Just ( name, parseReferences body |> Set.fromList )
 
                     _ ->
                         Nothing
             )
+        |> Dict.fromList
 
 
 parseReferences : String -> List String
@@ -175,16 +168,44 @@ parseEntrypoints string =
             []
 
 
-makeGraph : List Function -> Graph String ()
+prune : String -> Dict String (Set String) -> Dict String (Set String)
+prune name functions =
+    pruneHelper name functions Dict.empty
+
+
+pruneHelper : String -> Dict String (Set String) -> Dict String (Set String) -> Dict String (Set String)
+pruneHelper name functions acc =
+    case Dict.get name functions of
+        Just references ->
+            references
+                |> Set.toList
+                |> List.foldl
+                    (\reference acc2 ->
+                        if Dict.member reference acc2 then
+                            acc2
+
+                        else
+                            pruneHelper reference functions acc2
+                    )
+                    (Dict.insert name references acc)
+
+        Nothing ->
+            Dict.empty
+
+
+makeGraph : Dict String (Set String) -> Graph String ()
 makeGraph functions =
     let
+        functionsWithIds : List ( NodeId, String, Set String )
+        functionsWithIds =
+            functions
+                |> Dict.toList
+                |> List.indexedMap (\id ( name, references ) -> ( id, name, references ))
+
         ids : Dict String NodeId
         ids =
-            functions
-                |> List.indexedMap
-                    (\index function ->
-                        ( function.name, index )
-                    )
+            functionsWithIds
+                |> List.map (\( id, name, _ ) -> ( name, id ))
                 |> Dict.fromList
 
         getId : String -> Maybe NodeId
@@ -192,34 +213,26 @@ makeGraph functions =
             Dict.get name ids
 
         nodes =
-            functions
-                |> List.filterMap
-                    (\function ->
-                        getId function.name
-                            |> Maybe.map
-                                (\id ->
-                                    Node id (niceFunctionName function.name)
-                                )
+            functionsWithIds
+                |> List.map
+                    (\( id, name, _ ) ->
+                        Node id (niceFunctionName name)
                     )
 
         edges =
-            functions
+            functionsWithIds
                 |> List.concatMap
-                    (\function ->
-                        case getId function.name of
-                            Just fromId ->
-                                function.references
-                                    |> List.filterMap
-                                        (\reference ->
-                                            getId reference
-                                                |> Maybe.map
-                                                    (\toId ->
-                                                        Edge fromId toId ()
-                                                    )
-                                        )
-
-                            Nothing ->
-                                []
+                    (\( fromId, name, references ) ->
+                        references
+                            |> Set.toList
+                            |> List.filterMap
+                                (\reference ->
+                                    getId reference
+                                        |> Maybe.map
+                                            (\toId ->
+                                                Edge fromId toId ()
+                                            )
+                                )
                     )
     in
     Graph.fromNodesAndEdges nodes edges
