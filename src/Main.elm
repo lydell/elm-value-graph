@@ -58,10 +58,30 @@ view model =
         code =
             Fixture.fixture
 
-        graph =
+        functions =
             parseEntrypoints code
                 |> List.foldl prune (parse code)
-                |> makeGraph
+
+        matches =
+            functions
+                |> Dict.keys
+                |> List.filter ((==) "$elm_community$intdict$IntDict$higherBitMask")
+
+        inverted =
+            invert functions
+
+        functionsToKeep =
+            matches
+                |> List.foldl
+                    (referencing inverted >> Set.union)
+                    (Set.fromList matches)
+
+        filtered =
+            functions
+                |> Dict.filter (\name _ -> Set.member name functionsToKeep)
+
+        graph =
+            makeGraph filtered
 
         dot =
             Graph.DOT.outputWithStylesAndAttributes
@@ -154,6 +174,7 @@ parseReferences string =
             (\name ->
                 String.startsWith "$" name
                     && not (String.startsWith "$temp$" name)
+                    && not (String.startsWith "$elm$" name)
             )
 
 
@@ -168,6 +189,54 @@ parseEntrypoints string =
             []
 
 
+invert : Dict String (Set String) -> Dict String (Set String)
+invert functions =
+    functions
+        |> Dict.foldl
+            (\name references acc ->
+                references
+                    |> Set.foldl
+                        (\reference acc2 ->
+                            acc2
+                                |> Dict.update reference
+                                    (\previous ->
+                                        case previous of
+                                            Just set ->
+                                                Just (Set.insert name set)
+
+                                            Nothing ->
+                                                Just (Set.singleton name)
+                                    )
+                        )
+                        acc
+            )
+            Dict.empty
+
+
+referencing : Dict String (Set String) -> String -> Set String
+referencing inverted name =
+    referencingHelper inverted name Set.empty
+
+
+referencingHelper : Dict String (Set String) -> String -> Set String -> Set String
+referencingHelper inverted name acc =
+    case Dict.get name inverted of
+        Just set ->
+            set
+                |> Set.foldl
+                    (\name2 acc2 ->
+                        if Set.member name2 acc2 then
+                            acc2
+
+                        else
+                            referencingHelper inverted name2 (Set.insert name2 acc2)
+                    )
+                    acc
+
+        Nothing ->
+            acc
+
+
 prune : String -> Dict String (Set String) -> Dict String (Set String)
 prune name functions =
     pruneHelper name functions Dict.empty
@@ -178,8 +247,7 @@ pruneHelper name functions acc =
     case Dict.get name functions of
         Just references ->
             references
-                |> Set.toList
-                |> List.foldl
+                |> Set.foldl
                     (\reference acc2 ->
                         if Dict.member reference acc2 then
                             acc2
