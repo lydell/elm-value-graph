@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "scripts": {
+    "postinstall": "elm-tooling install",
+    "start": "elm-watch hot",
+    "build": "elm-watch make --optimize",
+    "test": "prettier --check . && elm-format --validate ."
+  },
+  "devDependencies": {
+    "elm-tooling": "1.8.0",
+    "elm-watch": "1.0.0-beta.9",
+    "prettier": "2.6.2"
+  }
+}

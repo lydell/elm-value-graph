@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Elm value graph</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./build/Main.js"></script>
+    <script>
+      Elm.Main.init({ node: document.getElementById("root") });
+
+      const loadScript = (src, integrity, getLibrary) =>
+        new Promise((resolve, reject) => {
+          const library = getLibrary();
+          if (library !== undefined) {
+            resolve(library);
+            return;
+          }
+          const script = document.createElement("script");
+          script.src = src;
+          script.integrity = integrity;
+          script.crossOrigin = "anonymous";
+          script.onload = () => resolve(getLibrary());
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+
+      customElements.define(
+        "graphviz-dot",
+        class extends HTMLElement {
+          graphviz = loadScript(
+            "https://unpkg.com/@hpcc-js/wasm@0.3.13/dist/index.min.js",
+            "sha384-S3SZvlAPicEvP1Sd9vl7Y5gC2eK7M7gJ4KQw2+FYWf3Cx7JUdN52vrugspT7wKlZ",
+            () => window["@hpcc-js/wasm"]?.graphviz
+          );
+
+          svgPanZoom = loadScript(
+            "https://unpkg.com/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js",
+            "sha384-yc/c2Lk1s2V2ir1rxvjo8YyVD9PlOlYTqpNr3Wm1WIuAA30GlDYNx6U5104OiavY",
+            () => window.svgPanZoom
+          );
+
+          static get observedAttributes() {
+            return ["dot"];
+          }
+
+          attributeChangedCallback() {
+            this.update();
+          }
+
+          update() {
+            const dot = this.getAttribute("dot");
+            if (dot == null) {
+              this.innerHTML = "";
+              return;
+            }
+
+            // Render DOT into SVG.
+            this.graphviz
+              .then((graphviz) => graphviz.dot(dot))
+              .then((svgString) => {
+                this.innerHTML = svgString;
+                const svgElement = this.firstElementChild;
+                if (svgElement instanceof SVGSVGElement) {
+                  // Styling.
+                  svgElement.style.width = "100%";
+                  svgElement.style.height = "100%";
+                  svgElement.style.cursor = "default";
+
+                  // <title> elements are shown as tooltips in SVG. Graphviz
+                  // generates titles such as “G” and “2->8” from the code that
+                  // elm-graph generates. Those are just noisy. This is the only
+                  // way I’ve found the get rid of them.
+                  svgElement
+                    .querySelectorAll("title")
+                    .forEach((title) => title.remove());
+
+                  // Enable drag-to-pan and scroll-to-zoom. Zoom out a little bit to
+                  // avoid the graph touching the edges of the viewport, that looks better.
+                  return this.svgPanZoom.then((svgPanZoom) => {
+                    svgPanZoom(svgElement, {
+                      dblClickZoomEnabled: false,
+                    }).zoomBy(0.9);
+                  });
+                }
+                return undefined;
+              })
+              .catch((error) => {
+                console.error(
+                  "Failed to render using Graphviz and svg-pan-zoom",
+                  error
+                );
+              });
+          }
+        }
+      );
+    </script>
+  </body>
+</html>
