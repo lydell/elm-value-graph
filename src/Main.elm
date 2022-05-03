@@ -1,11 +1,14 @@
 module Main exposing (main)
 
 import Browser
-import Dict
-import Graph exposing (Edge, Graph, Node)
+import Dict exposing (Dict)
+import Fixture
+import Graph exposing (Edge, Graph, Node, NodeId)
 import Graph.DOT
 import Html exposing (Html)
 import Html.Attributes
+import Regex exposing (Regex)
+import Set exposing (Set)
 
 
 main : Program () Model Msg
@@ -24,8 +27,8 @@ type alias Model =
     }
 
 
-init : flags -> ( Model, Cmd Msg )
-init flags =
+init : () -> ( Model, Cmd Msg )
+init () =
     ( Model 0 "modelInitialValue2", Cmd.none )
 
 
@@ -45,13 +48,24 @@ update msg model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.none
 
 
 view : Model -> Html Msg
 view model =
     let
+        code =
+            Fixture.fixture
+
+        entrypoints =
+            parseEntrypoints code
+
+        graph =
+            code
+                |> parse
+                |> makeGraph
+
         dot =
             Graph.DOT.outputWithStylesAndAttributes
                 { rankdir = Graph.DOT.TB
@@ -71,54 +85,159 @@ view model =
                          -- , ( "labeltooltip", edge.relation )
                         ]
                 )
-                dressUp
+                graph
     in
-    Html.node "graphviz-dot"
-        [ Html.Attributes.attribute "dot" dot
-        , Html.Attributes.style "position" "absolute"
-        , Html.Attributes.style "top" "0"
-        , Html.Attributes.style "left" "0"
-        , Html.Attributes.style "width" "100%"
-        , Html.Attributes.style "height" "100%"
-        , Html.Attributes.style "display" "flex"
-        ]
-        []
-
-
-dressUp : Graph String ()
-
-
-
--- node labels are strings, edge labels are empty
-
-
-dressUp =
-    let
-        nodes =
-            [ Node 0 "Socks"
-            , Node 1 "Undershirt"
-            , Node 2 "Pants"
-            , Node 3 "Shoes"
-            , Node 4 "Watch"
-            , Node 5 "Shirt"
-            , Node 6 "Belt"
-            , Node 7 "Tie"
-            , Node 8 "Jacket"
+    Html.div []
+        [ Html.node "graphviz-dot"
+            [ Html.Attributes.attribute "dot" dot
+            , Html.Attributes.style "position" "absolute"
+            , Html.Attributes.style "top" "0"
+            , Html.Attributes.style "left" "0"
+            , Html.Attributes.style "width" "100%"
+            , Html.Attributes.style "height" "100%"
+            , Html.Attributes.style "display" "flex"
             ]
+            []
+        , Html.div
+            [ Html.Attributes.style "position" "absolute"
+            , Html.Attributes.style "top" "0"
+            , Html.Attributes.style "left" "0"
+            , Html.Attributes.style "background" "white"
+            , Html.Attributes.style "padding" "1em"
+            ]
+            [ entrypoints
+                |> Debug.toString
+                |> Html.text
+            ]
+        ]
 
-        e from to =
-            Edge from to ()
+
+type alias Function =
+    { name : String
+    , references : List String
+    }
+
+
+functionRegex : Regex
+functionRegex =
+    Regex.fromStringWith { caseInsensitive = False, multiline = True }
+        "^var (\\$\\S+) =(.*(?:\\r?\\n\\t.*)*)"
+        |> Maybe.withDefault Regex.never
+
+
+referencesRegex : Regex
+referencesRegex =
+    Regex.fromString
+        """(['"])(?:(?!\\1)[^\\\\\\n\\r]|\\\\(?:\\r\\n|[^]))*(\\1)?|\\/\\*(?:[^*]|\\*(?!\\/))*(\\*\\/)?|\\/\\/.*|\\$[^\\s!"#%&'()*+,\\-./:;<=>?@\\[\\]^`{|}~]+\\b"""
+        |> Maybe.withDefault Regex.never
+
+
+entrypointsRegex : Regex
+entrypointsRegex =
+    Regex.fromStringWith { caseInsensitive = False, multiline = True }
+        "^_Platform_export\\(.*(?:\\r?\\n\\t.*)*"
+        |> Maybe.withDefault Regex.never
+
+
+parse : String -> List Function
+parse string =
+    Regex.find functionRegex string
+        |> List.filterMap
+            (\match ->
+                case match.submatches of
+                    [ Just name, Just body ] ->
+                        Just { name = name, references = parseReferences body }
+
+                    _ ->
+                        Nothing
+            )
+
+
+parseReferences : String -> List String
+parseReferences string =
+    Regex.find referencesRegex string
+        |> List.map .match
+        |> List.filter
+            (\name ->
+                String.startsWith "$" name
+                    && not (String.startsWith "$temp$" name)
+            )
+
+
+parseEntrypoints : String -> List String
+parseEntrypoints string =
+    case Regex.findAtMost 1 entrypointsRegex string of
+        [ match ] ->
+            parseReferences match.match
+                |> List.filter (String.startsWith "$author$project$")
+
+        _ ->
+            []
+
+
+makeGraph : List Function -> Graph String ()
+makeGraph functions =
+    let
+        ids : Dict String NodeId
+        ids =
+            functions
+                |> List.indexedMap
+                    (\index function ->
+                        ( function.name, index )
+                    )
+                |> Dict.fromList
+
+        getId : String -> Maybe NodeId
+        getId name =
+            Dict.get name ids
+
+        nodes =
+            functions
+                |> List.filterMap
+                    (\function ->
+                        getId function.name
+                            |> Maybe.map
+                                (\id ->
+                                    Node id (niceFunctionName function.name)
+                                )
+                    )
 
         edges =
-            [ e 0 3 -- socks before shoes
-            , e 1 2 -- undershorts before pants
-            , e 1 3 -- undershorts before shoes
-            , e 2 3 -- pants before shoes
-            , e 2 6 -- pants before belt
-            , e 5 6 -- shirt before belt
-            , e 5 7 -- shirt before tie
-            , e 6 8 -- belt before jacket
-            , e 7 8 -- tie before jacket
-            ]
+            functions
+                |> List.concatMap
+                    (\function ->
+                        case getId function.name of
+                            Just fromId ->
+                                function.references
+                                    |> List.filterMap
+                                        (\reference ->
+                                            getId reference
+                                                |> Maybe.map
+                                                    (\toId ->
+                                                        Edge fromId toId ()
+                                                    )
+                                        )
+
+                            Nothing ->
+                                []
+                    )
     in
     Graph.fromNodesAndEdges nodes edges
+
+
+niceFunctionName : String -> String
+niceFunctionName name =
+    case String.split "$" name of
+        "" :: "author" :: "project" :: rest ->
+            String.join "." rest
+
+        "" :: author :: package :: rest ->
+            dash author ++ "/" ++ dash package ++ "\n" ++ String.join "." rest
+
+        _ ->
+            name
+
+
+dash : String -> String
+dash =
+    String.replace "_" "-"
