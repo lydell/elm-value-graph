@@ -7,6 +7,7 @@ import Graph exposing (Edge, Graph, Node, NodeId)
 import Graph.DOT
 import Html exposing (Html)
 import Html.Attributes
+import Html.Events
 import Regex exposing (Regex)
 import Set exposing (Set)
 
@@ -22,26 +23,30 @@ main =
 
 
 type alias Model =
-    { property : Int
-    , property2 : String
+    { page : Page
     }
+
+
+type Page
+    = Textarea
+    | Graph { code : String }
 
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    ( Model 0 "modelInitialValue2", Cmd.none )
+    ( { page = Textarea }, Cmd.none )
 
 
 type Msg
-    = Msg1
+    = TextareaChanged String
     | Msg2
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Msg1 ->
-            ( model, Cmd.none )
+        TextareaChanged code ->
+            ( { model | page = Graph { code = code } }, Cmd.none )
 
         Msg2 ->
             ( model, Cmd.none )
@@ -54,10 +59,47 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
-    let
-        code =
-            Fixture.fixture
+    case model.page of
+        Textarea ->
+            viewTextarea
 
+        Graph { code } ->
+            viewGraph code
+
+
+viewTextarea : Html Msg
+viewTextarea =
+    Html.textarea
+        [ Html.Attributes.style "position" "absolute"
+        , Html.Attributes.style "top" "0"
+        , Html.Attributes.style "left" "0"
+        , Html.Attributes.style "width" "100%"
+        , Html.Attributes.style "height" "100%"
+        , Html.Attributes.style "padding" "1em"
+        , Html.Attributes.style "appearance" "none"
+        , Html.Attributes.style "border" "none"
+        , Html.Attributes.style "border-radius" "0"
+        , Html.Attributes.style "margin" "0"
+        , Html.Attributes.style "resize" "none"
+        , Html.Attributes.placeholder placeholder
+        , Html.Attributes.value ""
+        , Html.Events.onInput TextareaChanged
+        ]
+        []
+
+
+placeholder : String
+placeholder =
+    -- Note: It’s not ideal to have the command in the placeholder, since you cannot copy it.
+    """Paste compiled JavaScript from Elm here.
+
+For example, the contents of elm.js in `elm make src/Main.elm --output elm.js`.
+"""
+
+
+viewGraph : String -> Html Msg
+viewGraph code =
+    let
         functions =
             parseEntrypoints code
                 |> List.foldl prune (parse code)
