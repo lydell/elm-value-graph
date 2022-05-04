@@ -39,7 +39,7 @@ init () =
 
 type Msg
     = TextareaChanged String
-    | Msg2
+    | BackToTextareaPressed
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -48,8 +48,8 @@ update msg model =
         TextareaChanged code ->
             ( { model | page = Graph { code = code } }, Cmd.none )
 
-        Msg2 ->
-            ( model, Cmd.none )
+        BackToTextareaPressed ->
+            ( { model | page = Textarea }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -61,8 +61,15 @@ view : Model -> Html Msg
 view model =
     Html.div [ Html.Attributes.class "Container AbsoluteFill" ]
         [ Html.div [ Html.Attributes.class "Container-toolbar" ]
-            [ Html.text "Find references to an Elm value “recursively”"
-            ]
+            (Html.text "Find references to an Elm value “recursively”"
+                :: (case model.page of
+                        Textarea ->
+                            []
+
+                        Graph _ ->
+                            viewGraphToolbar
+                   )
+            )
         , Html.div [ Html.Attributes.class "Container-content" ]
             [ case model.page of
                 Textarea ->
@@ -72,6 +79,16 @@ view model =
                     viewGraph code
             ]
         ]
+
+
+viewGraphToolbar : List (Html Msg)
+viewGraphToolbar =
+    [ Html.button
+        [ Html.Attributes.style "margin-left" "auto"
+        , Html.Events.onClick BackToTextareaPressed
+        ]
+        [ Html.text "Paste new JS" ]
+    ]
 
 
 viewTextarea : Html Msg
