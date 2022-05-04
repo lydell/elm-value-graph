@@ -151,6 +151,9 @@ view model =
                     if Dict.isEmpty filtered then
                         Html.text "empty"
 
+                    else if Dict.size filtered > 1000 then
+                        Html.text <| "Graph too big: " ++ String.fromInt (Dict.size filtered)
+
                     else
                         viewGraph filtered
                 }
