@@ -29,27 +29,69 @@ type alias Model =
 
 type Page
     = Textarea
-    | Graph { code : String }
+    | Graph GraphData
+
+
+type alias GraphData =
+    { code : String
+    , searchValue : String
+    , searchPackage : String
+    }
 
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    ( { page = Textarea }, Cmd.none )
+    ( { page =
+            Graph
+                { code = Fixture.fixture
+                , searchValue = ""
+                , searchPackage = ""
+                }
+      }
+    , Cmd.none
+    )
 
 
 type Msg
     = TextareaChanged String
     | BackToTextareaPressed
+    | SearchValueChanged String
+    | SearchPackageChanged String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         TextareaChanged code ->
-            ( { model | page = Graph { code = code } }, Cmd.none )
+            ( { model
+                | page =
+                    Graph
+                        { code = code
+                        , searchValue = ""
+                        , searchPackage = ""
+                        }
+              }
+            , Cmd.none
+            )
 
         BackToTextareaPressed ->
             ( { model | page = Textarea }, Cmd.none )
+
+        SearchValueChanged text ->
+            case model.page of
+                Textarea ->
+                    ( model, Cmd.none )
+
+                Graph data ->
+                    ( { model | page = Graph { data | searchValue = text } }, Cmd.none )
+
+        SearchPackageChanged text ->
+            case model.page of
+                Textarea ->
+                    ( model, Cmd.none )
+
+                Graph data ->
+                    ( { model | page = Graph { data | searchPackage = text } }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -66,8 +108,8 @@ view model =
                         Textarea ->
                             []
 
-                        Graph _ ->
-                            viewGraphToolbar
+                        Graph data ->
+                            viewGraphToolbar data
                    )
             )
         , Html.div [ Html.Attributes.class "Container-content" ]
@@ -81,14 +123,30 @@ view model =
         ]
 
 
-viewGraphToolbar : List (Html Msg)
-viewGraphToolbar =
-    [ Html.button
+viewGraphToolbar : GraphData -> List (Html Msg)
+viewGraphToolbar data =
+    [ searchField { label = "Value", value = data.searchValue, onInput = SearchValueChanged }
+    , searchField { label = "Package", value = data.searchPackage, onInput = SearchPackageChanged }
+    , Html.text "(Use both fields, or just one.)"
+    , Html.button
         [ Html.Attributes.style "margin-left" "auto"
         , Html.Events.onClick BackToTextareaPressed
         ]
         [ Html.text "Paste new JS" ]
     ]
+
+
+searchField : { label : String, value : String, onInput : String -> msg } -> Html msg
+searchField { label, value, onInput } =
+    Html.label [ Html.Attributes.class "SearchField" ]
+        [ Html.span [ Html.Attributes.class "SearchField-label" ]
+            [ Html.text label ]
+        , Html.input
+            [ Html.Attributes.value value
+            , Html.Events.onInput onInput
+            ]
+            []
+        ]
 
 
 viewTextarea : Html Msg
