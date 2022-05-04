@@ -89,40 +89,106 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
+    case model.page of
+        Textarea ->
+            viewContainer
+                { toolbar = []
+                , content = viewTextarea
+                }
+
+        Graph { code, search } ->
+            let
+                functions =
+                    parseEntrypoints code
+                        |> List.foldl prune (parse code)
+
+                parsedSearch =
+                    parseSearch search
+
+                matches =
+                    functions
+                        |> Dict.keys
+                        |> List.filter (matchFunction parsedSearch)
+
+                inverted =
+                    invert functions
+
+                functionsToKeep =
+                    matches
+                        |> List.foldl
+                            (referencing inverted >> Set.union)
+                            (Set.fromList matches)
+
+                filtered =
+                    functions
+                        |> Dict.filter (\name _ -> Set.member name functionsToKeep)
+
+                suggestions =
+                    functions
+                        |> Dict.keys
+                        |> List.concatMap
+                            (\functionName ->
+                                case parseFunctionName functionName of
+                                    App { name } ->
+                                        [ String.join "." name ]
+
+                                    Package { author, package, name } ->
+                                        [ author ++ "/" ++ package
+                                        , String.join "." name
+                                        ]
+
+                                    Unknown name ->
+                                        [ name ]
+                            )
+                        -- Remove duplicates
+                        |> Set.fromList
+                        |> Set.toList
+                        |> List.sort
+            in
+            viewContainer
+                { toolbar = viewGraphToolbar search suggestions
+                , content = viewGraph filtered
+                }
+
+
+viewContainer : { toolbar : List (Html msg), content : Html msg } -> Html msg
+viewContainer { toolbar, content } =
     Html.div [ Html.Attributes.class "Container AbsoluteFill" ]
         [ Html.div [ Html.Attributes.class "Container-toolbar" ]
             (Html.text "Find references to an Elm value “recursively”"
-                :: (case model.page of
-                        Textarea ->
-                            []
-
-                        Graph data ->
-                            viewGraphToolbar data
-                   )
+                :: toolbar
             )
         , Html.div [ Html.Attributes.class "Container-content" ]
-            [ case model.page of
-                Textarea ->
-                    viewTextarea
-
-                Graph { code } ->
-                    viewGraph code
+            [ content
             ]
         ]
 
 
-viewGraphToolbar : GraphData -> List (Html Msg)
-viewGraphToolbar data =
+searchFieldId : String
+searchFieldId =
+    "searchFieldId"
+
+
+viewGraphToolbar : String -> List String -> List (Html Msg)
+viewGraphToolbar search suggestions =
     [ Html.label [ Html.Attributes.class "SearchField" ]
         [ Html.span [ Html.Attributes.class "SearchField-label" ]
             [ Html.text "Search" ]
         , Html.input
-            [ Html.Attributes.value data.search
+            [ Html.Attributes.value search
             , Html.Events.onInput SearchChanged
             , Html.Attributes.placeholder "For example “Html.Styled.toUnstyled” or “rtfeldman/elm-css”"
             , Html.Attributes.style "width" "30em"
+            , Html.Attributes.list searchFieldId
             ]
             []
+        , Html.datalist [ Html.Attributes.id searchFieldId ]
+            (suggestions
+                |> List.map
+                    (\suggestion ->
+                        Html.option [ Html.Attributes.value suggestion ] []
+                    )
+            )
         ]
     , Html.button
         [ Html.Attributes.style "margin-left" "auto"
@@ -152,34 +218,9 @@ For example, the contents of elm.js in `elm make src/Main.elm --output elm.js`.
 """
 
 
-viewGraph : String -> Html Msg
-viewGraph code =
+viewGraph : Dict String (Set String) -> Html msg
+viewGraph functions =
     let
-        functions =
-            parseEntrypoints code
-                |> List.foldl prune (parse code)
-
-        matches =
-            functions
-                |> Dict.keys
-                |> List.filter ((==) "$elm_community$intdict$IntDict$higherBitMask")
-
-        inverted =
-            invert functions
-
-        functionsToKeep =
-            matches
-                |> List.foldl
-                    (referencing inverted >> Set.union)
-                    (Set.fromList matches)
-
-        filtered =
-            functions
-                |> Dict.filter (\name _ -> Set.member name functionsToKeep)
-
-        graph =
-            makeGraph filtered
-
         dot =
             Graph.DOT.outputWithStylesAndAttributes
                 { rankdir = Graph.DOT.TB
@@ -199,7 +240,7 @@ viewGraph code =
                          -- , ( "labeltooltip", edge.relation )
                         ]
                 )
-                graph
+                (makeGraph functions)
     in
     Html.node "graphviz-dot"
         [ Html.Attributes.attribute "dot" dot
@@ -362,7 +403,7 @@ makeGraph functions =
             functionsWithIds
                 |> List.map
                     (\( id, name, _ ) ->
-                        Node id (niceFunctionName name)
+                        Node id (functionNameToString (parseFunctionName name))
                     )
 
         edges =
@@ -384,16 +425,80 @@ makeGraph functions =
     Graph.fromNodesAndEdges nodes edges
 
 
-niceFunctionName : String -> String
-niceFunctionName name =
-    case String.split "$" name of
-        "" :: "author" :: "project" :: rest ->
-            String.join "." rest
+type Search
+    = ByName { name : String }
+    | ByPackage { author : String, package : String }
 
-        "" :: author :: package :: rest ->
-            dash author ++ "/" ++ dash package ++ "\n" ++ String.join "." rest
+
+parseSearch : String -> Search
+parseSearch string =
+    case String.split "/" string of
+        [ author, package ] ->
+            ByPackage { author = author, package = package }
 
         _ ->
+            ByName { name = string }
+
+
+matchFunction : Search -> String -> Bool
+matchFunction search functionNameString =
+    let
+        functionName =
+            parseFunctionName functionNameString
+    in
+    case search of
+        ByName { name } ->
+            case functionName of
+                App data ->
+                    String.startsWith name (String.join "." data.name)
+
+                Package data ->
+                    String.startsWith name (String.join "." data.name)
+
+                Unknown unknownName ->
+                    String.startsWith name unknownName
+
+        ByPackage { author, package } ->
+            case functionName of
+                App _ ->
+                    False
+
+                Package data ->
+                    author == data.author && package == data.package
+
+                Unknown _ ->
+                    False
+
+
+type FunctionName
+    = App { name : List String }
+    | Package { author : String, package : String, name : List String }
+    | Unknown String
+
+
+parseFunctionName : String -> FunctionName
+parseFunctionName name =
+    case String.split "$" name of
+        "" :: "author" :: "project" :: rest ->
+            App { name = rest }
+
+        "" :: author :: package :: rest ->
+            Package { author = dash author, package = dash package, name = rest }
+
+        _ ->
+            Unknown name
+
+
+functionNameToString : FunctionName -> String
+functionNameToString functionName =
+    case functionName of
+        App { name } ->
+            String.join "." name
+
+        Package { author, package, name } ->
+            author ++ "/" ++ package ++ "\n" ++ String.join "." name
+
+        Unknown name ->
             name
 
 
