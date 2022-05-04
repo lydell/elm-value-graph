@@ -34,8 +34,7 @@ type Page
 
 type alias GraphData =
     { code : String
-    , searchValue : String
-    , searchPackage : String
+    , search : String
     }
 
 
@@ -44,8 +43,7 @@ init () =
     ( { page =
             Graph
                 { code = Fixture.fixture
-                , searchValue = ""
-                , searchPackage = ""
+                , search = ""
                 }
       }
     , Cmd.none
@@ -55,8 +53,7 @@ init () =
 type Msg
     = TextareaChanged String
     | BackToTextareaPressed
-    | SearchValueChanged String
-    | SearchPackageChanged String
+    | SearchChanged String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -67,8 +64,7 @@ update msg model =
                 | page =
                     Graph
                         { code = code
-                        , searchValue = ""
-                        , searchPackage = ""
+                        , search = ""
                         }
               }
             , Cmd.none
@@ -77,21 +73,13 @@ update msg model =
         BackToTextareaPressed ->
             ( { model | page = Textarea }, Cmd.none )
 
-        SearchValueChanged text ->
+        SearchChanged text ->
             case model.page of
                 Textarea ->
                     ( model, Cmd.none )
 
                 Graph data ->
-                    ( { model | page = Graph { data | searchValue = text } }, Cmd.none )
-
-        SearchPackageChanged text ->
-            case model.page of
-                Textarea ->
-                    ( model, Cmd.none )
-
-                Graph data ->
-                    ( { model | page = Graph { data | searchPackage = text } }, Cmd.none )
+                    ( { model | page = Graph { data | search = text } }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -125,28 +113,23 @@ view model =
 
 viewGraphToolbar : GraphData -> List (Html Msg)
 viewGraphToolbar data =
-    [ searchField { label = "Value", value = data.searchValue, onInput = SearchValueChanged }
-    , searchField { label = "Package", value = data.searchPackage, onInput = SearchPackageChanged }
-    , Html.text "(Use both fields, or just one.)"
+    [ Html.label [ Html.Attributes.class "SearchField" ]
+        [ Html.span [ Html.Attributes.class "SearchField-label" ]
+            [ Html.text "Search" ]
+        , Html.input
+            [ Html.Attributes.value data.search
+            , Html.Events.onInput SearchChanged
+            , Html.Attributes.placeholder "For example “Html.Styled.toUnstyled” or “rtfeldman/elm-css”"
+            , Html.Attributes.style "width" "30em"
+            ]
+            []
+        ]
     , Html.button
         [ Html.Attributes.style "margin-left" "auto"
         , Html.Events.onClick BackToTextareaPressed
         ]
         [ Html.text "Paste new JS" ]
     ]
-
-
-searchField : { label : String, value : String, onInput : String -> msg } -> Html msg
-searchField { label, value, onInput } =
-    Html.label [ Html.Attributes.class "SearchField" ]
-        [ Html.span [ Html.Attributes.class "SearchField-label" ]
-            [ Html.text label ]
-        , Html.input
-            [ Html.Attributes.value value
-            , Html.Events.onInput onInput
-            ]
-            []
-        ]
 
 
 viewTextarea : Html Msg
