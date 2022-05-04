@@ -147,7 +147,12 @@ view model =
             in
             viewContainer
                 { toolbar = viewGraphToolbar search suggestions
-                , content = viewGraph filtered
+                , content =
+                    if Dict.isEmpty filtered then
+                        Html.text "empty"
+
+                    else
+                        viewGraph filtered
                 }
 
 
@@ -251,15 +256,22 @@ viewGraph functions =
 
 functionRegex : Regex
 functionRegex =
+    -- Functions that use themselves inside themselves in certain ways are defined
+    -- with `function $some$module$cyclic$functionName`, while everything else is
+    -- defined with `var`.
     Regex.fromStringWith { caseInsensitive = False, multiline = True }
-        "^var (\\$\\S+) =(.*(?:\\r?\\n\\t.*)*)"
+        "^(?:var|function) (\\$[^\\s()]+)(.*(?:\\r?\\n\\t.*)*)"
         |> Maybe.withDefault Regex.never
 
 
 referencesRegex : Regex
 referencesRegex =
+    -- Matches string literals, multiline comments, singleline comments and some identifiers.
+    -- We’re only interested in `$foo` – but only outside strings and comments.
+    -- And not things like `_v0$2` or `_v1.$9` or `{ $9: something }`.
+    -- Parts copied from: https://github.com/lydell/js-tokens/blob/15439aa6c3a66afa852c3549f8f57076935ead1f/index.coffee
     Regex.fromString
-        """(['"])(?:(?!\\1)[^\\\\\\n\\r]|\\\\(?:\\r\\n|[^]))*(\\1)?|\\/\\*(?:[^*]|\\*(?!\\/))*(\\*\\/)?|\\/\\/.*|\\$[^\\s!"#%&'()*+,\\-./:;<=>?@\\[\\]^`{|}~]+\\b"""
+        """(['"])(?:(?!\\1)[^\\\\\\n\\r]|\\\\(?:\\r\\n|[^]))*(\\1)?|\\/\\*(?:[^*]|\\*(?!\\/))*(\\*\\/)?|\\/\\/.*|\\w*\\.?\\$[^\\s!"#%&'()*+,\\-./:;<=>?@\\[\\]^`{|}~]+\\b(?!:)"""
         |> Maybe.withDefault Regex.never
 
 
