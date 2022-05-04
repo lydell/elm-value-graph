@@ -59,28 +59,25 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
-    case model.page of
-        Textarea ->
-            viewTextarea
+    Html.div [ Html.Attributes.class "Container AbsoluteFill" ]
+        [ Html.div [ Html.Attributes.class "Container-toolbar" ]
+            [ Html.text "Find references to an Elm value “recursively”"
+            ]
+        , Html.div [ Html.Attributes.class "Container-content" ]
+            [ case model.page of
+                Textarea ->
+                    viewTextarea
 
-        Graph { code } ->
-            viewGraph code
+                Graph { code } ->
+                    viewGraph code
+            ]
+        ]
 
 
 viewTextarea : Html Msg
 viewTextarea =
     Html.textarea
-        [ Html.Attributes.style "position" "absolute"
-        , Html.Attributes.style "top" "0"
-        , Html.Attributes.style "left" "0"
-        , Html.Attributes.style "width" "100%"
-        , Html.Attributes.style "height" "100%"
-        , Html.Attributes.style "padding" "1em"
-        , Html.Attributes.style "appearance" "none"
-        , Html.Attributes.style "border" "none"
-        , Html.Attributes.style "border-radius" "0"
-        , Html.Attributes.style "margin" "0"
-        , Html.Attributes.style "resize" "none"
+        [ Html.Attributes.class "AbsoluteFill Textarea"
         , Html.Attributes.placeholder placeholder
         , Html.Attributes.value ""
         , Html.Events.onInput TextareaChanged
@@ -146,30 +143,11 @@ viewGraph code =
                 )
                 graph
     in
-    Html.div []
-        [ Html.node "graphviz-dot"
-            [ Html.Attributes.attribute "dot" dot
-            , Html.Attributes.style "position" "absolute"
-            , Html.Attributes.style "top" "0"
-            , Html.Attributes.style "left" "0"
-            , Html.Attributes.style "width" "100%"
-            , Html.Attributes.style "height" "100%"
-            , Html.Attributes.style "display" "flex"
-            ]
-            []
-
-        -- , Html.div
-        --     [ Html.Attributes.style "position" "absolute"
-        --     , Html.Attributes.style "top" "0"
-        --     , Html.Attributes.style "left" "0"
-        --     , Html.Attributes.style "background" "white"
-        --     , Html.Attributes.style "padding" "1em"
-        --     ]
-        --     [ entrypoints
-        --         |> Debug.toString
-        --         |> Html.text
-        --     ]
+    Html.node "graphviz-dot"
+        [ Html.Attributes.attribute "dot" dot
+        , Html.Attributes.class "AbsoluteFill"
         ]
+        []
 
 
 functionRegex : Regex
