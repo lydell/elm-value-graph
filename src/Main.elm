@@ -334,50 +334,56 @@ invert functions =
 
 referencing : Dict String (Set String) -> String -> Set String
 referencing inverted name =
-    referencingHelper inverted name Set.empty
+    referencingHelper inverted [ name ] Set.empty
 
 
-referencingHelper : Dict String (Set String) -> String -> Set String -> Set String
-referencingHelper inverted name acc =
-    case Dict.get name inverted of
-        Just set ->
-            set
-                |> Set.foldl
-                    (\name2 acc2 ->
-                        if Set.member name2 acc2 then
-                            acc2
-
-                        else
-                            referencingHelper inverted name2 (Set.insert name2 acc2)
-                    )
-                    acc
-
-        Nothing ->
+referencingHelper : Dict String (Set String) -> List String -> Set String -> Set String
+referencingHelper inverted names acc =
+    case names of
+        [] ->
             acc
+
+        name :: rest ->
+            if Set.member name acc then
+                referencingHelper inverted rest acc
+
+            else
+                case Dict.get name inverted of
+                    Just set ->
+                        referencingHelper
+                            inverted
+                            (rest ++ Set.toList set)
+                            (Set.insert name acc)
+
+                    Nothing ->
+                        acc
 
 
 prune : String -> Dict String (Set String) -> Dict String (Set String)
 prune name functions =
-    pruneHelper name functions Dict.empty
+    pruneHelper [ name ] functions Dict.empty
 
 
-pruneHelper : String -> Dict String (Set String) -> Dict String (Set String) -> Dict String (Set String)
-pruneHelper name functions acc =
-    case Dict.get name functions of
-        Just references ->
-            references
-                |> Set.foldl
-                    (\reference acc2 ->
-                        if Dict.member reference acc2 then
-                            acc2
+pruneHelper : List String -> Dict String (Set String) -> Dict String (Set String) -> Dict String (Set String)
+pruneHelper names functions acc =
+    case names of
+        [] ->
+            acc
 
-                        else
-                            pruneHelper reference functions acc2
-                    )
-                    (Dict.insert name references acc)
+        name :: rest ->
+            if Dict.member name acc then
+                pruneHelper rest functions acc
 
-        Nothing ->
-            Dict.empty
+            else
+                case Dict.get name functions of
+                    Just references ->
+                        pruneHelper
+                            (rest ++ Set.toList references)
+                            functions
+                            (Dict.insert name references acc)
+
+                    Nothing ->
+                        Dict.empty
 
 
 makeGraph : Dict String (Set String) -> Graph String ()
