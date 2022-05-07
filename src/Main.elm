@@ -181,7 +181,7 @@ viewGraphToolbar : String -> List String -> List (Html Msg)
 viewGraphToolbar search suggestions =
     [ Html.label [ Html.Attributes.class "SearchField" ]
         [ Html.span [ Html.Attributes.class "SearchField-label" ]
-            [ Html.text "Search" ]
+            [ Html.text "Search (Fully.Qualified.name or author/package)" ]
         , Html.input
             [ Html.Attributes.value search
             , Html.Events.onInput SearchChanged
@@ -233,8 +233,8 @@ viewGraph functions =
             Graph.DOT.outputWithStylesAndAttributes
                 { rankdir = Graph.DOT.TB
                 , graph = ""
-                , node = "fontname=\"helvetica\", shape=box, style=\"filled\", colorscheme=\"pastel19\""
-                , edge = "fontname=\"helvetica\""
+                , node = "fontname=\"inherit\", shape=box, style=\"filled\", colorscheme=\"pastel19\""
+                , edge = ""
                 }
                 (\graphNode ->
                     Dict.fromList
@@ -242,12 +242,7 @@ viewGraph functions =
                         , ( "color", "1" )
                         ]
                 )
-                (\edge ->
-                    Dict.fromList
-                        [--     ( "label", edge.label )
-                         -- , ( "labeltooltip", edge.relation )
-                        ]
-                )
+                (\_ -> Dict.empty)
                 (makeGraph functions)
     in
     Html.node "graphviz-dot"
