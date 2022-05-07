@@ -446,7 +446,7 @@ valueRegex =
     -- defined with `var`. The cyclic ones are wrapped in `try {}` during development –
     -- that’s the only time a definition can be indented.
     Regex.fromStringWith { caseInsensitive = False, multiline = True }
-        "^\t?(?:var|function) (\\$[^\\s()]+)(.*(?:\\r?\\n\\t.*)*)"
+        "^(\t?)(?:var|function) (\\$[^\\s()]+)(.*(?:\\r?\\n\\1\\t.*)*)"
         |> Maybe.withDefault Regex.never
 
 
@@ -474,7 +474,7 @@ parse string =
         |> List.filterMap
             (\match ->
                 case match.submatches of
-                    [ Just name, Just body ] ->
+                    [ _, Just name, Just body ] ->
                         Just ( name, parseReferences body |> Set.fromList )
 
                     _ ->
