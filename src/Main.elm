@@ -285,8 +285,8 @@ viewGraph functions =
                 }
                 (\graphNode ->
                     Dict.fromList
-                        [ ( "label", graphNode )
-                        , ( "color", "1" )
+                        [ ( "label", graphNode.label )
+                        , ( "color", graphNode.color )
                         ]
                 )
                 (\_ -> Dict.empty)
@@ -443,7 +443,7 @@ pruneHelper names functions acc =
                         Dict.empty
 
 
-makeGraph : Dict String (Set String) -> Graph String ()
+makeGraph : Dict String (Set String) -> Graph NodeData ()
 makeGraph functions =
     let
         functionsWithIds : List ( NodeId, String, Set String )
@@ -466,7 +466,7 @@ makeGraph functions =
             functionsWithIds
                 |> List.map
                     (\( id, name, _ ) ->
-                        Node id (functionNameToString (parseFunctionName name))
+                        Node id (functionNameToNodeData (parseFunctionName name))
                     )
 
         edges =
@@ -552,17 +552,29 @@ parseFunctionName name =
             Unknown name
 
 
-functionNameToString : FunctionName -> String
-functionNameToString functionName =
+type alias NodeData =
+    { label : String
+    , color : String
+    }
+
+
+functionNameToNodeData : FunctionName -> NodeData
+functionNameToNodeData functionName =
     case functionName of
         App { name } ->
-            String.join "." name
+            { label = String.join "." name
+            , color = "1"
+            }
 
         Package { author, package, name } ->
-            author ++ "/" ++ package ++ "\n" ++ String.join "." name
+            { label = author ++ "/" ++ package ++ "\n" ++ String.join "." name
+            , color = "2"
+            }
 
         Unknown name ->
-            name
+            { label = name
+            , color = "3"
+            }
 
 
 dash : String -> String
