@@ -76,7 +76,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 Graph data ->
-                    ( { model | page = Graph { data | search = text } }, Cmd.none )
+                    ( { model | page = Graph { data | search = String.trim text } }, Cmd.none )
 
         TextareaFocused ->
             ( model, Cmd.none )
@@ -99,11 +99,6 @@ subscriptions _ =
     Sub.none
 
 
-maxGraphSize : number
-maxGraphSize =
-    1000
-
-
 view : Model -> Html Msg
 view model =
     case model.page of
@@ -114,62 +109,18 @@ view model =
                 , infoShown = model.infoShown
                 }
 
-        Graph { search, pruned, inverted, suggestions } ->
-            let
-                parsedSearch : Search
-                parsedSearch =
-                    parseSearch search
-
-                matches : List String
-                matches =
-                    pruned
-                        |> Dict.keys
-                        |> List.filter (matchValue parsedSearch)
-
-                valuesToKeep : Set String
-                valuesToKeep =
-                    matches
-                        |> List.foldl
-                            (referencing inverted >> Set.union)
-                            (Set.fromList matches)
-
-                filtered : Dict String (Set String)
-                filtered =
-                    pruned
-                        |> Dict.filter (\name _ -> Set.member name valuesToKeep)
-            in
+        Graph data ->
             viewContainer
-                { toolbar = viewGraphToolbar model.infoShown search suggestions
+                { toolbar = viewGraphToolbar model.infoShown data.search data.suggestions
                 , content =
-                    if Dict.isEmpty pruned then
-                        viewEmpty "I could not find anything interesting in the stuff you pasted. Did you really paste compiled Elm JavaScript? Or did you find a bug?"
+                    case filterGraph data of
+                        Ok filtered ->
+                            viewGraph filtered
 
-                    else if List.isEmpty matches then
-                        viewEmpty "Your search query does not seem to match anything."
-
-                    else if Set.isEmpty valuesToKeep then
-                        viewEmpty "I tried to find all everything to keep related to your search query, but that resulted in zero things to keep! Sounds like a bug."
-
-                    else if Dict.isEmpty filtered then
-                        viewEmpty "Filtering the graph using your search query ended up with an empty graph! But I did find matching stuff, so this sounds like a bug."
-
-                    else if Dict.size filtered > maxGraphSize then
-                        viewEmpty <|
-                            "The graph contains "
-                                ++ String.fromInt (Dict.size filtered)
-                                ++ " nodes. I only display graphs with "
-                                ++ String.fromInt maxGraphSize
-                                ++ " nodes or less. Otherwise the graph renderer (Graphviz) tends to hang."
-
-                    else
-                        viewGraph filtered
+                        Err message ->
+                            Html.p [] [ Html.text message ]
                 , infoShown = model.infoShown
                 }
-
-
-viewEmpty : String -> Html msg
-viewEmpty message =
-    Html.p [] [ Html.text message ]
 
 
 viewContainer :
@@ -363,6 +314,91 @@ enterGraph code =
         , inverted = inverted
         , suggestions = suggestions
         }
+
+
+filterGraph :
+    { a
+        | search : String
+        , pruned : Dict String (Set String)
+        , inverted : Dict String (Set String)
+    }
+    -> Result String (Dict String (Set String))
+filterGraph { search, pruned, inverted } =
+    if Dict.isEmpty pruned then
+        Err "I could not find anything interesting in the stuff you pasted. Did you really paste compiled Elm JavaScript? Or did you find a bug?"
+
+    else if String.isEmpty search then
+        checkGraphSize pruned
+
+    else
+        let
+            time s a =
+                let
+                    _ =
+                        Debug.log s ()
+                in
+                a
+
+            parsedSearch : Search
+            parsedSearch =
+                parseSearch search
+                    |> time "parsedSearch"
+
+            matches : List String
+            matches =
+                pruned
+                    |> Dict.keys
+                    |> List.filter (matchValue parsedSearch)
+                    |> time "matches"
+        in
+        if List.isEmpty matches then
+            Err "Your search query does not seem to match anything."
+
+        else
+            let
+                valuesToKeep : Set String
+                valuesToKeep =
+                    matches
+                        |> List.foldl
+                            (referencing inverted >> Set.union)
+                            (Set.fromList matches)
+                        |> time "valuesToKeep"
+            in
+            if Set.isEmpty valuesToKeep then
+                Err "I tried to find all everything to keep related to your search query, but that resulted in zero things to keep! Sounds like a bug."
+
+            else
+                let
+                    filtered : Dict String (Set String)
+                    filtered =
+                        pruned
+                            |> Dict.filter (\name _ -> Set.member name valuesToKeep)
+                            |> time "filtered"
+                in
+                if Dict.isEmpty filtered then
+                    Err "Filtering the graph using your search query ended up with an empty graph! But I did find matching stuff, so this sounds like a bug."
+
+                else
+                    checkGraphSize filtered
+
+
+checkGraphSize : Dict k v -> Result String (Dict k v)
+checkGraphSize dict =
+    if Dict.size dict > maxGraphSize then
+        Err <|
+            "The graph contains "
+                ++ String.fromInt (Dict.size dict)
+                ++ " nodes. I only display graphs with "
+                ++ String.fromInt maxGraphSize
+                ++ " nodes or less. Otherwise the graph renderer (Graphviz) tends to hang."
+
+    else
+        Ok dict
+
+
+maxGraphSize : Int
+maxGraphSize =
+    1000
 
 
 valueRegex : Regex

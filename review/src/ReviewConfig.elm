@@ -11,6 +11,7 @@ when inside the directory containing this file.
 
 -}
 
+
 import Docs.ReviewAtDocs
 import NoDebug.Log
 import NoDebug.TodoOrToString
@@ -19,6 +20,7 @@ import NoImportingEverything
 import NoMissingTypeAnnotation
 import NoMissingTypeAnnotationInLetIn
 import NoMissingTypeExpose
+import NoPrematureLetComputation
 import NoSimpleLetBody
 import NoUnused.CustomTypeConstructorArgs
 import NoUnused.CustomTypeConstructors
@@ -44,6 +46,7 @@ config =
     , NoMissingTypeAnnotationInLetIn.rule
     , NoMissingTypeExpose.rule
     , NoSimpleLetBody.rule
+    , NoPrematureLetComputation.rule
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.CustomTypeConstructorArgs.rule
     , NoUnused.Dependencies.rule
