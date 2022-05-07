@@ -335,6 +335,7 @@ enterGraph code =
 setSearch : String -> GraphData -> GraphData
 setSearch text data =
     let
+        search : String
         search =
             String.trim text
     in
@@ -368,24 +369,15 @@ filterGraph { search, pruned, inverted } =
 
     else
         let
-            time s a =
-                let
-                    _ =
-                        Debug.log s ()
-                in
-                a
-
             parsedSearch : Search
             parsedSearch =
                 parseSearch search
-                    |> time "parsedSearch"
 
             matches : List String
             matches =
                 pruned
                     |> Dict.keys
                     |> List.filter (matchValue parsedSearch)
-                    |> time "matches"
         in
         if List.isEmpty matches then
             Err "Your search query does not seem to match anything."
@@ -398,7 +390,6 @@ filterGraph { search, pruned, inverted } =
                         |> List.foldl
                             (referencing inverted >> Set.union)
                             (Set.fromList matches)
-                        |> time "valuesToKeep"
             in
             if Set.isEmpty valuesToKeep then
                 Err "I tried to find all everything to keep related to your search query, but that resulted in zero things to keep! Sounds like a bug."
@@ -409,7 +400,6 @@ filterGraph { search, pruned, inverted } =
                     filtered =
                         pruned
                             |> Dict.filter (\name _ -> Set.member name valuesToKeep)
-                            |> time "filtered"
                 in
                 if Dict.isEmpty filtered then
                     Err "Filtering the graph using your search query ended up with an empty graph! But I did find matching stuff, so this sounds like a bug."
