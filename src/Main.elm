@@ -174,7 +174,7 @@ viewTextareaToolbar : Bool -> List (Html Msg)
 viewTextareaToolbar infoShown =
     [ viewToolbarTitle
     , Html.button [ Html.Events.onClick PasteExamplePressed ]
-        [ Html.text "Paste example" ]
+        [ Html.text "Paste example (this app)" ]
     , Html.div [ Html.Attributes.style "margin-left" "auto" ] [ viewInfoButton infoShown ]
     ]
 
