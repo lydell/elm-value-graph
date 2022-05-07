@@ -105,7 +105,7 @@ view model =
     case model.page of
         Textarea ->
             viewContainer
-                { toolbar = []
+                { toolbar = viewTextareaToolbar
                 , content = viewTextarea
                 }
 
@@ -201,13 +201,28 @@ viewContainer : { toolbar : List (Html msg), content : Html msg } -> Html msg
 viewContainer { toolbar, content } =
     Html.div [ Html.Attributes.class "Container AbsoluteFill" ]
         [ Html.div [ Html.Attributes.class "Container-toolbar" ]
-            (Html.text "Why does my Elm app depend on …?"
-                :: toolbar
-            )
+            toolbar
         , Html.div [ Html.Attributes.class "Container-content" ]
             [ content
             ]
         ]
+
+
+viewToolbarTitle : Html msg
+viewToolbarTitle =
+    Html.text "Why does my Elm app depend on …?"
+
+
+viewInfoButton : Html msg
+viewInfoButton =
+    Html.button [ Html.Attributes.style "justify-self" "flex-end" ] [ Html.text "Info" ]
+
+
+viewTextareaToolbar : List (Html msg)
+viewTextareaToolbar =
+    [ viewToolbarTitle
+    , Html.div [ Html.Attributes.style "margin-left" "auto" ] [ viewInfoButton ]
+    ]
 
 
 searchFieldId : String
@@ -217,7 +232,8 @@ searchFieldId =
 
 viewGraphToolbar : String -> List String -> List (Html Msg)
 viewGraphToolbar search suggestions =
-    [ Html.label
+    [ viewToolbarTitle
+    , Html.label
         [ Html.Attributes.class "SearchField"
         , Html.Attributes.style "flex" "1"
         , Html.Attributes.style "max-width" "30em"
@@ -244,6 +260,7 @@ viewGraphToolbar search suggestions =
         , Html.Events.onClick BackToTextareaPressed
         ]
         [ Html.text "Paste new JS" ]
+    , viewInfoButton
     ]
 
 
