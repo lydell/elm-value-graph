@@ -445,8 +445,16 @@ valueRegex =
     -- with `function $some$module$cyclic$functionName`, while everything else is
     -- defined with `var`. The cyclic ones are wrapped in `try {}` during development –
     -- that’s the only time a definition can be indented.
+    -- We also need to support a `}` at the start of the line, because I’ve seen this
+    -- code being generated (in https://github.com/lydell/codebase-ui/tree/02eac5056da3283687e0b61fa94a30ca6f71e3fb).
+    -- function _Http_track(router, xhr, tracker)
+    -- {
+    -- 	// stuff
+    -- }var $author$project$PreApp$AppMsg = function (a) {
+    -- 	return {$: 'AppMsg', a: a};
+    -- };
     Regex.fromStringWith { caseInsensitive = False, multiline = True }
-        "^(\t?)(?:var|function) (\\$[^\\s()]+)(.*(?:\\r?\\n\\1\\t.*)*)"
+        "^\\}?(\t?)(?:var|function) (\\$[^\\s()]+)(.*(?:\\r?\\n\\1\\t.*)*)"
         |> Maybe.withDefault Regex.never
 
 
