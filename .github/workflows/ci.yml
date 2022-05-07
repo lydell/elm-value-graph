@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+
+      - name: Cache node_modules
+        id: cache-node_modules
+        uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: node_modules-${{ hashFiles('package.json', 'package-lock.json') }}
+
+      - name: npm ci
+        if: steps.cache-node_modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: elm-format
+        run: npx elm-format --validate .
+
+      - name: Prettier
+        run: npx prettier --check .
+
+      - name: elm-review
+        run: npx elm-review
+
+      - name: Build
+        run: npm run build
+
+      - name: gh-pages
+        if: github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@4.3.3
+        with:
+          branch: gh-pages
+          folder: .
+          single-commit: true
