@@ -41,6 +41,20 @@ customElements.define(
               .querySelectorAll("title")
               .forEach((title) => title.remove());
 
+            // For the “Double-click to filter by this node” feature.
+            svgElement.ondblclick = (event) => {
+              const { target } = event;
+              if (target instanceof Element) {
+                const node = target.closest(".node");
+                if (node !== null) {
+                  // Let Elm know which node we clicked.
+                  this.dispatchEvent(
+                    new CustomEvent("NodeDoubleClicked", { detail: node.id })
+                  );
+                }
+              }
+            };
+
             // Enable drag-to-pan and scroll-to-zoom. Zoom out a little bit to
             // avoid the graph touching the edges of the viewport, that looks better.
             svgPanZoom(svgElement, {

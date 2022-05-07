@@ -9,6 +9,7 @@ import Graph.DOT
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
+import Json.Decode as Decode
 import Regex exposing (Regex)
 import Set exposing (Set)
 import Task
@@ -248,7 +249,7 @@ For example, the contents of elm.js in `elm make src/Main.elm --output elm.js`.
 """
 
 
-viewGraph : Dict String (Set String) -> Html msg
+viewGraph : Dict String (Set String) -> Html Msg
 viewGraph values =
     let
         dot : String
@@ -261,7 +262,8 @@ viewGraph values =
                 }
                 (\graphNode ->
                     Dict.fromList
-                        [ ( "label", graphNode.label )
+                        [ ( "id", graphNode.id )
+                        , ( "label", graphNode.label )
                         , ( "color", graphNode.color )
                         ]
                 )
@@ -271,6 +273,16 @@ viewGraph values =
     Html.node "graphviz-dot"
         [ Html.Attributes.attribute "dot" dot
         , Html.Attributes.class "AbsoluteFill"
+        , Html.Events.custom "NodeDoubleClicked"
+            (Decode.field "detail" Decode.string
+                |> Decode.map
+                    (\nodeId ->
+                        { message = SearchChanged nodeId
+                        , stopPropagation = False
+                        , preventDefault = False
+                        }
+                    )
+            )
         ]
         []
 
@@ -692,7 +704,8 @@ dash =
 
 
 type alias NodeData =
-    { label : String
+    { id : String
+    , label : String
     , color : String
     }
 
@@ -701,16 +714,19 @@ valueNameToNodeData : Name -> NodeData
 valueNameToNodeData valueName =
     case valueName of
         App { name } ->
-            { label = String.join "." name
+            { id = String.join "." name
+            , label = String.join "." name
             , color = "1"
             }
 
         Package { author, package, name } ->
-            { label = author ++ "/" ++ package ++ "\n" ++ String.join "." name
+            { id = String.join "." name
+            , label = author ++ "/" ++ package ++ "\n" ++ String.join "." name
             , color = "2"
             }
 
         Unknown name ->
-            { label = name
+            { id = name
+            , label = name
             , color = "3"
             }
