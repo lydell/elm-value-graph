@@ -56,6 +56,7 @@ type Msg
     | SearchChanged String
     | TextareaFocused
     | InfoButtonPressed
+    | PasteExamplePressed
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -88,6 +89,17 @@ update msg model =
 
         InfoButtonPressed ->
             ( { model | infoShown = not model.infoShown }, Cmd.none )
+
+        PasteExamplePressed ->
+            ( { model
+                | page =
+                    Graph
+                        { code = Fixture.fixture
+                        , search = ""
+                        }
+              }
+            , Cmd.none
+            )
 
 
 focusTextarea : Cmd Msg
@@ -202,7 +214,7 @@ view model =
 
 viewEmpty : String -> Html msg
 viewEmpty message =
-    Html.div [ Html.Attributes.class "Empty" ] [ Html.text message ]
+    Html.p [] [ Html.text message ]
 
 
 viewContainer :
@@ -253,6 +265,8 @@ viewInfoButton infoShown =
 viewTextareaToolbar : Bool -> List (Html Msg)
 viewTextareaToolbar infoShown =
     [ viewToolbarTitle
+    , Html.button [ Html.Events.onClick PasteExamplePressed ]
+        [ Html.text "Paste example" ]
     , Html.div [ Html.Attributes.style "margin-left" "auto" ] [ viewInfoButton infoShown ]
     ]
 
