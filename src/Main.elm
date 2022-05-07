@@ -40,6 +40,7 @@ type alias GraphData =
     , pruned : Dict String (Set String)
     , inverted : Dict String (Set String)
     , suggestions : List String
+    , filtered : Result String (Dict String (Set String))
     }
 
 
@@ -76,7 +77,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 Graph data ->
-                    ( { model | page = Graph { data | search = String.trim text } }, Cmd.none )
+                    ( { model | page = Graph (setSearch text data) }, Cmd.none )
 
         TextareaFocused ->
             ( model, Cmd.none )
@@ -113,7 +114,7 @@ view model =
             viewContainer
                 { toolbar = viewGraphToolbar model.infoShown data.search data.suggestions
                 , content =
-                    case filterGraph data of
+                    case data.filtered of
                         Ok filtered ->
                             viewGraph filtered
 
@@ -207,6 +208,11 @@ viewGraphToolbar infoShown search suggestions =
                     )
             )
         ]
+    , if String.isEmpty search || List.member search suggestions then
+        Html.text ""
+
+      else
+        Html.text "Pick one of the alternatives in the list"
     , Html.button
         [ Html.Attributes.style "margin-left" "auto"
         , Html.Events.onClick BackToTextareaPressed
@@ -322,14 +328,35 @@ enterGraph code =
         , pruned = pruned
         , inverted = inverted
         , suggestions = suggestions
+        , filtered = filterGraph { search = "", pruned = pruned, inverted = inverted }
         }
 
 
+setSearch : String -> GraphData -> GraphData
+setSearch text data =
+    let
+        search =
+            String.trim text
+    in
+    if String.isEmpty search || List.member search data.suggestions then
+        { data
+            | search = search
+            , filtered =
+                filterGraph
+                    { search = search
+                    , pruned = data.pruned
+                    , inverted = data.inverted
+                    }
+        }
+
+    else
+        { data | search = search }
+
+
 filterGraph :
-    { a
-        | search : String
-        , pruned : Dict String (Set String)
-        , inverted : Dict String (Set String)
+    { search : String
+    , pruned : Dict String (Set String)
+    , inverted : Dict String (Set String)
     }
     -> Result String (Dict String (Set String))
 filterGraph { search, pruned, inverted } =
@@ -630,13 +657,13 @@ matchValue search valueNameString =
         ByName { name } ->
             case valueName of
                 App data ->
-                    String.startsWith name (String.join "." data.name)
+                    name == String.join "." data.name
 
                 Package data ->
-                    String.startsWith name (String.join "." data.name)
+                    name == String.join "." data.name
 
                 Unknown unknownName ->
-                    String.startsWith name unknownName
+                    name == unknownName
 
         ByPackage { author, package } ->
             case valueName of
