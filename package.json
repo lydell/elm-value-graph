@@ -2,9 +2,9 @@
   "private": true,
   "scripts": {
     "postinstall": "elm-tooling install",
-    "start": "node prebuild.mjs && run-pty % elm-watch hot % npm run esbuild -- --serve=9000 --servedir=.",
+    "start": "node prebuild.mjs && run-pty % elm-watch hot % npm run esbuild -- --serve=9000 --servedir=public",
     "build": "node prebuild.mjs && npm run esbuild -- --minify && elm-watch make --optimize",
-    "esbuild": "esbuild index.js index.css --bundle --outdir=build --public-path=/build/",
+    "esbuild": "esbuild index.js index.css --bundle --outdir=public/build --public-path=/build/",
     "test": "prettier --check . && elm-format --validate . && elm-review"
   },
   "devDependencies": {
