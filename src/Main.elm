@@ -95,6 +95,11 @@ subscriptions _ =
     Sub.none
 
 
+maxGraphSize : number
+maxGraphSize =
+    1000
+
+
 view : Model -> Html Msg
 view model =
     case model.page of
@@ -106,9 +111,12 @@ view model =
 
         Graph { code, search } ->
             let
+                parsed =
+                    parse code
+
                 functions =
                     parseEntrypoints code
-                        |> List.foldl prune (parse code)
+                        |> List.foldl prune parsed
 
                 parsedSearch =
                     parseSearch search
@@ -156,22 +164,44 @@ view model =
             viewContainer
                 { toolbar = viewGraphToolbar search suggestions
                 , content =
-                    if Dict.isEmpty filtered then
-                        Html.text "empty"
+                    if Dict.isEmpty parsed then
+                        viewEmpty "I could not find anything interesting in the stuff you pasted. Did you paste compiled Elm JavaScript? Or did you find a bug?"
 
-                    else if Dict.size filtered > 1000 then
-                        Html.text <| "Graph too big: " ++ String.fromInt (Dict.size filtered)
+                    else if Dict.isEmpty functions then
+                        viewEmpty "I tried to “prune” the graph, but that ended up removing everything! Sounds like a bug."
+
+                    else if List.isEmpty matches then
+                        viewEmpty "Your search query does not seem to match anything."
+
+                    else if Set.isEmpty functionsToKeep then
+                        viewEmpty "I tried to find all everything to keep related to your search query, but that resulted in zero things to keep! Sounds like a bug."
+
+                    else if Dict.isEmpty filtered then
+                        viewEmpty "Filtering the graph using your search query ended up with an empty graph! But I did find matching stuff, so this sounds like a bug."
+
+                    else if Dict.size filtered > maxGraphSize then
+                        viewEmpty <|
+                            "The graph contains "
+                                ++ String.fromInt (Dict.size filtered)
+                                ++ " nodes. I only display graps with "
+                                ++ String.fromInt maxGraphSize
+                                ++ " nodes or less. Otherwise the graph renderer (Graphviz) tends to hang."
 
                     else
                         viewGraph filtered
                 }
 
 
+viewEmpty : String -> Html msg
+viewEmpty message =
+    Html.div [ Html.Attributes.class "Empty" ] [ Html.text message ]
+
+
 viewContainer : { toolbar : List (Html msg), content : Html msg } -> Html msg
 viewContainer { toolbar, content } =
     Html.div [ Html.Attributes.class "Container AbsoluteFill" ]
         [ Html.div [ Html.Attributes.class "Container-toolbar" ]
-            (Html.text "Find references to an Elm value “recursively”"
+            (Html.text "Why does my Elm app depend on …?"
                 :: toolbar
             )
         , Html.div [ Html.Attributes.class "Container-content" ]
@@ -187,14 +217,17 @@ searchFieldId =
 
 viewGraphToolbar : String -> List String -> List (Html Msg)
 viewGraphToolbar search suggestions =
-    [ Html.label [ Html.Attributes.class "SearchField" ]
+    [ Html.label
+        [ Html.Attributes.class "SearchField"
+        , Html.Attributes.style "flex" "1"
+        , Html.Attributes.style "max-width" "30em"
+        ]
         [ Html.span [ Html.Attributes.class "SearchField-label" ]
-            [ Html.text "Search (Fully.Qualified.name or author/package)" ]
+            [ Html.text "Fully.Qualified.name or author/package" ]
         , Html.input
             [ Html.Attributes.value search
             , Html.Events.onInput SearchChanged
             , Html.Attributes.placeholder "For example “Html.Styled.toUnstyled” or “rtfeldman/elm-css”"
-            , Html.Attributes.style "width" "30em"
             , Html.Attributes.list searchFieldId
             ]
             []
@@ -234,7 +267,7 @@ viewTextarea =
 placeholder : String
 placeholder =
     -- Note: It’s not ideal to have the command in the placeholder, since you cannot copy it.
-    """Paste compiled JavaScript from Elm here.
+    """Paste compiled JavaScript from Elm here to analyze.
 
 For example, the contents of elm.js in `elm make src/Main.elm --output elm.js`.
 """
