@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Browser
+import Browser.Dom
 import Dict exposing (Dict)
 import Fixture
 import Graph exposing (Edge, Graph, Node, NodeId)
@@ -10,6 +11,7 @@ import Html.Attributes
 import Html.Events
 import Regex exposing (Regex)
 import Set exposing (Set)
+import Task
 
 
 main : Program () Model Msg
@@ -40,13 +42,9 @@ type alias GraphData =
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    ( { page =
-            Graph
-                { code = Fixture.fixture
-                , search = ""
-                }
+    ( { page = Textarea
       }
-    , Cmd.none
+    , focusTextarea
     )
 
 
@@ -54,6 +52,7 @@ type Msg
     = TextareaChanged String
     | BackToTextareaPressed
     | SearchChanged String
+    | TextareaFocused
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -71,7 +70,7 @@ update msg model =
             )
 
         BackToTextareaPressed ->
-            ( { model | page = Textarea }, Cmd.none )
+            ( { model | page = Textarea }, focusTextarea )
 
         SearchChanged text ->
             case model.page of
@@ -80,6 +79,15 @@ update msg model =
 
                 Graph data ->
                     ( { model | page = Graph { data | search = text } }, Cmd.none )
+
+        TextareaFocused ->
+            ( model, Cmd.none )
+
+
+focusTextarea : Cmd Msg
+focusTextarea =
+    Browser.Dom.focus textareaId
+        |> Task.attempt (always TextareaFocused)
 
 
 subscriptions : Model -> Sub Msg
@@ -206,6 +214,11 @@ viewGraphToolbar search suggestions =
     ]
 
 
+textareaId : String
+textareaId =
+    "textareaId"
+
+
 viewTextarea : Html Msg
 viewTextarea =
     Html.textarea
@@ -213,6 +226,7 @@ viewTextarea =
         , Html.Attributes.placeholder placeholder
         , Html.Attributes.value ""
         , Html.Events.onInput TextareaChanged
+        , Html.Attributes.id textareaId
         ]
         []
 
