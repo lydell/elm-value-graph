@@ -269,6 +269,15 @@ viewGraph values =
         []
 
 
+viewInfo : List (Html msg)
+viewInfo =
+    [ Html.p [] [ Html.text "This app shows you how every function – or any value – in an Elm application depend on each other, as a graph. It lets you answer questions like “why do I depend on this package?”." ]
+    , Html.p [] [ Html.text "Note: All elm/* packages are excluded because they made the graph too noisy." ]
+    , Html.p [] [ Html.text "Warning: This is essentially a quick hack. I run a bunch of regex on the compiled JavaScript output. It seems to work good enough, though." ]
+    , Html.p [] [ Html.text "Source code: ", Html.a [ Html.Attributes.href "https://github.com/lydell/elm-value-graph" ] [ Html.text "github.com/lydell/elm-value-graph" ] ]
+    ]
+
+
 enterGraph : String -> Page
 enterGraph code =
     let
@@ -660,6 +669,11 @@ parseName name =
             Unknown name
 
 
+dash : String -> String
+dash =
+    String.replace "_" "-"
+
+
 type alias NodeData =
     { label : String
     , color : String
@@ -683,17 +697,3 @@ valueNameToNodeData valueName =
             { label = name
             , color = "3"
             }
-
-
-dash : String -> String
-dash =
-    String.replace "_" "-"
-
-
-viewInfo : List (Html msg)
-viewInfo =
-    [ Html.p [] [ Html.text "This app shows you how every function – or any value – in an Elm application depend on each other, as a graph. It lets you answer questions like “why do I depend on this package?”." ]
-    , Html.p [] [ Html.text "Note: All elm/* packages are excluded because they made the graph too noisy." ]
-    , Html.p [] [ Html.text "Warning: This is essentially a quick hack. I run a bunch of regex on the compiled JavaScript output. It seems to work good enough, though." ]
-    , Html.p [] [ Html.text "Source code: ", Html.a [ Html.Attributes.href "https://github.com/lydell/elm-value-graph" ] [ Html.text "github.com/lydell/elm-value-graph" ] ]
-    ]
