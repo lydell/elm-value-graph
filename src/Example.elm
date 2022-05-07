@@ -1,8 +1,8 @@
-module Fixture exposing (fixture)
+module Example exposing (code)
 
 
-fixture : String
-fixture =
+code : String
+code =
     """
 (function(scope){
 'use strict';

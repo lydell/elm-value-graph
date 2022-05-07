@@ -3,7 +3,7 @@ module Main exposing (Model, Msg, Page, main)
 import Browser
 import Browser.Dom
 import Dict exposing (Dict)
-import Fixture
+import Example
 import Graph exposing (Edge, Graph, Node, NodeId)
 import Graph.DOT
 import Html exposing (Html)
@@ -87,7 +87,7 @@ update msg model =
             ( { model | infoShown = not model.infoShown }, Cmd.none )
 
         PasteExamplePressed ->
-            ( { model | page = enterGraph Fixture.fixture }, Cmd.none )
+            ( { model | page = enterGraph Example.code }, Cmd.none )
 
 
 focusTextarea : Cmd Msg
