@@ -210,7 +210,7 @@ view model =
                         viewEmpty <|
                             "The graph contains "
                                 ++ String.fromInt (Dict.size filtered)
-                                ++ " nodes. I only display graps with "
+                                ++ " nodes. I only display graphs with "
                                 ++ String.fromInt maxGraphSize
                                 ++ " nodes or less. Otherwise the graph renderer (Graphviz) tends to hang."
 
@@ -375,9 +375,10 @@ functionRegex : Regex
 functionRegex =
     -- Functions that use themselves inside themselves in certain ways are defined
     -- with `function $some$module$cyclic$functionName`, while everything else is
-    -- defined with `var`.
+    -- defined with `var`. The cyclic ones are wrapped in `try {}` during development –
+    -- that’s the only time a definition can be indented.
     Regex.fromStringWith { caseInsensitive = False, multiline = True }
-        "^(?:var|function) (\\$[^\\s()]+)(.*(?:\\r?\\n\\t.*)*)"
+        "^\t?(?:var|function) (\\$[^\\s()]+)(.*(?:\\r?\\n\\t.*)*)"
         |> Maybe.withDefault Regex.never
 
 
