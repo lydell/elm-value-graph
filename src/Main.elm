@@ -36,8 +36,10 @@ type Page
 
 
 type alias GraphData =
-    { code : String
-    , search : String
+    { search : String
+    , pruned : Dict String (Set String)
+    , inverted : Dict String (Set String)
+    , suggestions : List String
     }
 
 
@@ -63,15 +65,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         TextareaChanged code ->
-            ( { model
-                | page =
-                    Graph
-                        { code = code
-                        , search = ""
-                        }
-              }
-            , Cmd.none
-            )
+            ( { model | page = enterGraph code }, Cmd.none )
 
         BackToTextareaPressed ->
             ( { model | page = Textarea }, focusTextarea )
@@ -91,15 +85,7 @@ update msg model =
             ( { model | infoShown = not model.infoShown }, Cmd.none )
 
         PasteExamplePressed ->
-            ( { model
-                | page =
-                    Graph
-                        { code = Fixture.fixture
-                        , search = ""
-                        }
-              }
-            , Cmd.none
-            )
+            ( { model | page = enterGraph Fixture.fixture }, Cmd.none )
 
 
 focusTextarea : Cmd Msg
@@ -128,33 +114,20 @@ view model =
                 , infoShown = model.infoShown
                 }
 
-        Graph { code, search } ->
+        Graph { search, pruned, inverted, suggestions } ->
             let
-                parsed : Dict String (Set String)
-                parsed =
-                    parse code
-
-                functions : Dict String (Set String)
-                functions =
-                    parseEntrypoints code
-                        |> List.foldl prune parsed
-
                 parsedSearch : Search
                 parsedSearch =
                     parseSearch search
 
                 matches : List String
                 matches =
-                    functions
+                    pruned
                         |> Dict.keys
-                        |> List.filter (matchFunction parsedSearch)
+                        |> List.filter (matchValue parsedSearch)
 
-                inverted : Dict String (Set String)
-                inverted =
-                    invert functions
-
-                functionsToKeep : Set String
-                functionsToKeep =
+                valuesToKeep : Set String
+                valuesToKeep =
                     matches
                         |> List.foldl
                             (referencing inverted >> Set.union)
@@ -162,45 +135,19 @@ view model =
 
                 filtered : Dict String (Set String)
                 filtered =
-                    functions
-                        |> Dict.filter (\name _ -> Set.member name functionsToKeep)
-
-                suggestions : List String
-                suggestions =
-                    functions
-                        |> Dict.keys
-                        |> List.concatMap
-                            (\functionName ->
-                                case parseFunctionName functionName of
-                                    App { name } ->
-                                        [ String.join "." name ]
-
-                                    Package { author, package, name } ->
-                                        [ author ++ "/" ++ package
-                                        , String.join "." name
-                                        ]
-
-                                    Unknown name ->
-                                        [ name ]
-                            )
-                        -- Remove duplicates
-                        |> Set.fromList
-                        |> Set.toList
-                        |> List.sort
+                    pruned
+                        |> Dict.filter (\name _ -> Set.member name valuesToKeep)
             in
             viewContainer
                 { toolbar = viewGraphToolbar model.infoShown search suggestions
                 , content =
-                    if Dict.isEmpty parsed then
-                        viewEmpty "I could not find anything interesting in the stuff you pasted. Did you paste compiled Elm JavaScript? Or did you find a bug?"
-
-                    else if Dict.isEmpty functions then
-                        viewEmpty "I tried to “prune” the graph, but that ended up removing everything! Sounds like a bug."
+                    if Dict.isEmpty pruned then
+                        viewEmpty "I could not find anything interesting in the stuff you pasted. Did you really paste compiled Elm JavaScript? Or did you find a bug?"
 
                     else if List.isEmpty matches then
                         viewEmpty "Your search query does not seem to match anything."
 
-                    else if Set.isEmpty functionsToKeep then
+                    else if Set.isEmpty valuesToKeep then
                         viewEmpty "I tried to find all everything to keep related to your search query, but that resulted in zero things to keep! Sounds like a bug."
 
                     else if Dict.isEmpty filtered then
@@ -345,7 +292,7 @@ For example, the contents of elm.js in `elm make src/Main.elm --output elm.js`.
 
 
 viewGraph : Dict String (Set String) -> Html msg
-viewGraph functions =
+viewGraph values =
     let
         dot : String
         dot =
@@ -362,7 +309,7 @@ viewGraph functions =
                         ]
                 )
                 (\_ -> Dict.empty)
-                (makeGraph functions)
+                (makeGraph values)
     in
     Html.node "graphviz-dot"
         [ Html.Attributes.attribute "dot" dot
@@ -371,9 +318,56 @@ viewGraph functions =
         []
 
 
-functionRegex : Regex
-functionRegex =
-    -- Functions that use themselves inside themselves in certain ways are defined
+enterGraph : String -> Page
+enterGraph code =
+    let
+        parsed : Dict String (Set String)
+        parsed =
+            parse code
+
+        pruned : Dict String (Set String)
+        pruned =
+            parseEntrypoints code
+                |> List.foldl prune parsed
+
+        inverted : Dict String (Set String)
+        inverted =
+            invert pruned
+
+        suggestions : List String
+        suggestions =
+            pruned
+                |> Dict.keys
+                |> List.concatMap
+                    (\valueName ->
+                        case parseName valueName of
+                            App { name } ->
+                                [ String.join "." name ]
+
+                            Package { author, package, name } ->
+                                [ author ++ "/" ++ package
+                                , String.join "." name
+                                ]
+
+                            Unknown name ->
+                                [ name ]
+                    )
+                -- Remove duplicates
+                |> Set.fromList
+                |> Set.toList
+                |> List.sort
+    in
+    Graph
+        { search = ""
+        , pruned = pruned
+        , inverted = inverted
+        , suggestions = suggestions
+        }
+
+
+valueRegex : Regex
+valueRegex =
+    -- Values that use themselves inside themselves in certain ways are defined
     -- with `function $some$module$cyclic$functionName`, while everything else is
     -- defined with `var`. The cyclic ones are wrapped in `try {}` during development –
     -- that’s the only time a definition can be indented.
@@ -402,7 +396,7 @@ entrypointsRegex =
 
 parse : String -> Dict String (Set String)
 parse string =
-    Regex.find functionRegex string
+    Regex.find valueRegex string
         |> List.filterMap
             (\match ->
                 case match.submatches of
@@ -439,27 +433,26 @@ parseEntrypoints string =
 
 
 invert : Dict String (Set String) -> Dict String (Set String)
-invert functions =
-    functions
-        |> Dict.foldl
-            (\name references acc ->
-                references
-                    |> Set.foldl
-                        (\reference acc2 ->
-                            acc2
-                                |> Dict.update reference
-                                    (\previous ->
-                                        case previous of
-                                            Just set ->
-                                                Just (Set.insert name set)
+invert =
+    Dict.foldl
+        (\name references acc ->
+            references
+                |> Set.foldl
+                    (\reference acc2 ->
+                        acc2
+                            |> Dict.update reference
+                                (\previous ->
+                                    case previous of
+                                        Just set ->
+                                            Just (Set.insert name set)
 
-                                            Nothing ->
-                                                Just (Set.singleton name)
-                                    )
-                        )
-                        acc
-            )
-            Dict.empty
+                                        Nothing ->
+                                            Just (Set.singleton name)
+                                )
+                    )
+                    acc
+        )
+        Dict.empty
 
 
 referencing : Dict String (Set String) -> String -> Set String
@@ -493,26 +486,26 @@ referencingHelper inverted names acc =
 
 
 prune : String -> Dict String (Set String) -> Dict String (Set String)
-prune name functions =
-    pruneHelper [ name ] functions Dict.empty
+prune name parsed =
+    pruneHelper [ name ] parsed Dict.empty
 
 
 pruneHelper : List String -> Dict String (Set String) -> Dict String (Set String) -> Dict String (Set String)
-pruneHelper names functions acc =
+pruneHelper names parsed acc =
     case names of
         [] ->
             acc
 
         name :: rest ->
             if Dict.member name acc then
-                pruneHelper rest functions acc
+                pruneHelper rest parsed acc
 
             else
-                case Dict.get name functions of
+                case Dict.get name parsed of
                     Just references ->
                         pruneHelper
                             (rest ++ Set.toList references)
-                            functions
+                            parsed
                             (Dict.insert name references acc)
 
                     Nothing ->
@@ -520,17 +513,17 @@ pruneHelper names functions acc =
 
 
 makeGraph : Dict String (Set String) -> Graph NodeData ()
-makeGraph functions =
+makeGraph values =
     let
-        functionsWithIds : List ( NodeId, String, Set String )
-        functionsWithIds =
-            functions
+        valuesWithIds : List ( NodeId, String, Set String )
+        valuesWithIds =
+            values
                 |> Dict.toList
                 |> List.indexedMap (\id ( name, references ) -> ( id, name, references ))
 
         ids : Dict String NodeId
         ids =
-            functionsWithIds
+            valuesWithIds
                 |> List.map (\( id, name, _ ) -> ( name, id ))
                 |> Dict.fromList
 
@@ -540,15 +533,15 @@ makeGraph functions =
 
         nodes : List (Node NodeData)
         nodes =
-            functionsWithIds
+            valuesWithIds
                 |> List.map
                     (\( id, name, _ ) ->
-                        Node id (functionNameToNodeData (parseFunctionName name))
+                        Node id (valueNameToNodeData (parseName name))
                     )
 
         edges : List (Edge ())
         edges =
-            functionsWithIds
+            valuesWithIds
                 |> List.concatMap
                     (\( fromId, _, references ) ->
                         references
@@ -581,16 +574,16 @@ parseSearch string =
             ByName { name = string }
 
 
-matchFunction : Search -> String -> Bool
-matchFunction search functionNameString =
+matchValue : Search -> String -> Bool
+matchValue search valueNameString =
     let
-        functionName : FunctionName
-        functionName =
-            parseFunctionName functionNameString
+        valueName : Name
+        valueName =
+            parseName valueNameString
     in
     case search of
         ByName { name } ->
-            case functionName of
+            case valueName of
                 App data ->
                     String.startsWith name (String.join "." data.name)
 
@@ -601,7 +594,7 @@ matchFunction search functionNameString =
                     String.startsWith name unknownName
 
         ByPackage { author, package } ->
-            case functionName of
+            case valueName of
                 App _ ->
                     False
 
@@ -612,14 +605,14 @@ matchFunction search functionNameString =
                     False
 
 
-type FunctionName
+type Name
     = App { name : List String }
     | Package { author : String, package : String, name : List String }
     | Unknown String
 
 
-parseFunctionName : String -> FunctionName
-parseFunctionName name =
+parseName : String -> Name
+parseName name =
     case String.split "$" name of
         "" :: "author" :: "project" :: rest ->
             App { name = rest }
@@ -637,9 +630,9 @@ type alias NodeData =
     }
 
 
-functionNameToNodeData : FunctionName -> NodeData
-functionNameToNodeData functionName =
-    case functionName of
+valueNameToNodeData : Name -> NodeData
+valueNameToNodeData valueName =
+    case valueName of
         App { name } ->
             { label = String.join "." name
             , color = "1"
