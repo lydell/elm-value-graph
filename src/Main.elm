@@ -26,6 +26,7 @@ main =
 
 type alias Model =
     { page : Page
+    , infoShown : Bool
     }
 
 
@@ -43,6 +44,7 @@ type alias GraphData =
 init : () -> ( Model, Cmd Msg )
 init () =
     ( { page = Textarea
+      , infoShown = False
       }
     , focusTextarea
     )
@@ -53,6 +55,7 @@ type Msg
     | BackToTextareaPressed
     | SearchChanged String
     | TextareaFocused
+    | InfoButtonPressed
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -83,6 +86,9 @@ update msg model =
         TextareaFocused ->
             ( model, Cmd.none )
 
+        InfoButtonPressed ->
+            ( { model | infoShown = not model.infoShown }, Cmd.none )
+
 
 focusTextarea : Cmd Msg
 focusTextarea =
@@ -105,8 +111,9 @@ view model =
     case model.page of
         Textarea ->
             viewContainer
-                { toolbar = viewTextareaToolbar
+                { toolbar = viewTextareaToolbar model.infoShown
                 , content = viewTextarea
+                , infoShown = model.infoShown
                 }
 
         Graph { code, search } ->
@@ -162,7 +169,7 @@ view model =
                         |> List.sort
             in
             viewContainer
-                { toolbar = viewGraphToolbar search suggestions
+                { toolbar = viewGraphToolbar model.infoShown search suggestions
                 , content =
                     if Dict.isEmpty parsed then
                         viewEmpty "I could not find anything interesting in the stuff you pasted. Did you paste compiled Elm JavaScript? Or did you find a bug?"
@@ -189,6 +196,7 @@ view model =
 
                     else
                         viewGraph filtered
+                , infoShown = model.infoShown
                 }
 
 
@@ -197,13 +205,26 @@ viewEmpty message =
     Html.div [ Html.Attributes.class "Empty" ] [ Html.text message ]
 
 
-viewContainer : { toolbar : List (Html msg), content : Html msg } -> Html msg
-viewContainer { toolbar, content } =
+viewContainer :
+    { toolbar : List (Html msg)
+    , content : Html msg
+    , infoShown : Bool
+    }
+    -> Html msg
+viewContainer { toolbar, content, infoShown } =
     Html.div [ Html.Attributes.class "Container AbsoluteFill" ]
         [ Html.div [ Html.Attributes.class "Container-toolbar" ]
             toolbar
-        , Html.div [ Html.Attributes.class "Container-content" ]
-            [ content
+        , Html.div [ Html.Attributes.class "Container-inner" ]
+            [ Html.div [ Html.Attributes.class "Container-content" ]
+                [ content
+                ]
+            , if infoShown then
+                Html.div [ Html.Attributes.class "Container-info" ]
+                    viewInfo
+
+              else
+                Html.text ""
             ]
         ]
 
@@ -213,15 +234,26 @@ viewToolbarTitle =
     Html.text "Why does my Elm app depend on …?"
 
 
-viewInfoButton : Html msg
-viewInfoButton =
-    Html.button [ Html.Attributes.style "justify-self" "flex-end" ] [ Html.text "Info" ]
+viewInfoButton : Bool -> Html Msg
+viewInfoButton infoShown =
+    Html.button
+        [ Html.Attributes.style "justify-self" "flex-end"
+        , Html.Events.onClick InfoButtonPressed
+        ]
+        [ Html.text
+            (if infoShown then
+                "Hide info"
+
+             else
+                "Info"
+            )
+        ]
 
 
-viewTextareaToolbar : List (Html msg)
-viewTextareaToolbar =
+viewTextareaToolbar : Bool -> List (Html Msg)
+viewTextareaToolbar infoShown =
     [ viewToolbarTitle
-    , Html.div [ Html.Attributes.style "margin-left" "auto" ] [ viewInfoButton ]
+    , Html.div [ Html.Attributes.style "margin-left" "auto" ] [ viewInfoButton infoShown ]
     ]
 
 
@@ -230,8 +262,8 @@ searchFieldId =
     "searchFieldId"
 
 
-viewGraphToolbar : String -> List String -> List (Html Msg)
-viewGraphToolbar search suggestions =
+viewGraphToolbar : Bool -> String -> List String -> List (Html Msg)
+viewGraphToolbar infoShown search suggestions =
     [ viewToolbarTitle
     , Html.label
         [ Html.Attributes.class "SearchField"
@@ -260,7 +292,7 @@ viewGraphToolbar search suggestions =
         , Html.Events.onClick BackToTextareaPressed
         ]
         [ Html.text "Paste new JS" ]
-    , viewInfoButton
+    , viewInfoButton infoShown
     ]
 
 
@@ -597,3 +629,12 @@ functionNameToNodeData functionName =
 dash : String -> String
 dash =
     String.replace "_" "-"
+
+
+viewInfo : List (Html msg)
+viewInfo =
+    [ Html.p [] [ Html.text "This app shows you how every function – or any value – in an Elm application depend on each other, as a graph. It lets you answer questions like “why do I depend on this package?”." ]
+    , Html.p [] [ Html.text "Note: All elm/* packages are excluded because they made the graph too noisy." ]
+    , Html.p [] [ Html.text "Warning: This is essentially a quick hack. I run a bunch of regex on the compiled JavaScript output. It seems to work good enough, though." ]
+    , Html.p [] [ Html.text "Source code: ", Html.a [ Html.Attributes.href "https://github.com/lydell/elm-value-graph" ] [ Html.text "github.com/lydell/elm-value-graph" ] ]
+    ]

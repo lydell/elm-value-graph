@@ -23,6 +23,14 @@
         font: inherit;
       }
 
+      p {
+        margin: 0;
+      }
+
+      p + p {
+        margin-top: 1em;
+      }
+
       graphviz-dot {
         display: flex;
       }
@@ -49,9 +57,21 @@
         align-items: flex-end;
       }
 
-      .Container-content {
+      .Container-inner {
         flex: 1;
+        display: flex;
+      }
+
+      .Container-content {
         position: relative;
+        flex: 1;
+        padding: 1em;
+      }
+
+      .Container-info {
+        flex: 1;
+        border-left: 1px solid;
+        padding: 1em;
       }
 
       .Textarea {
