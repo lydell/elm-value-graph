@@ -56,7 +56,7 @@ graphviz-dot {
 
 .Container-content {
   position: relative;
-  flex: 1;
+  flex: 2;
   padding: 1em;
 }
 
