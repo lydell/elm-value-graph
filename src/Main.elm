@@ -485,7 +485,10 @@ referencingHelper inverted names acc =
                             (Set.insert name acc)
 
                     Nothing ->
-                        acc
+                        referencingHelper
+                            inverted
+                            rest
+                            (Set.insert name acc)
 
 
 prune : String -> Dict String (Set String) -> Dict String (Set String)
