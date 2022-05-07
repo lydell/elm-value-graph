@@ -1,4 +1,4 @@
-module Main exposing (main)
+module Main exposing (Model, Msg, Page, main)
 
 import Browser
 import Browser.Dom
@@ -130,34 +130,42 @@ view model =
 
         Graph { code, search } ->
             let
+                parsed : Dict String (Set String)
                 parsed =
                     parse code
 
+                functions : Dict String (Set String)
                 functions =
                     parseEntrypoints code
                         |> List.foldl prune parsed
 
+                parsedSearch : Search
                 parsedSearch =
                     parseSearch search
 
+                matches : List String
                 matches =
                     functions
                         |> Dict.keys
                         |> List.filter (matchFunction parsedSearch)
 
+                inverted : Dict String (Set String)
                 inverted =
                     invert functions
 
+                functionsToKeep : Set String
                 functionsToKeep =
                     matches
                         |> List.foldl
                             (referencing inverted >> Set.union)
                             (Set.fromList matches)
 
+                filtered : Dict String (Set String)
                 filtered =
                     functions
                         |> Dict.filter (\name _ -> Set.member name functionsToKeep)
 
+                suggestions : List String
                 suggestions =
                     functions
                         |> Dict.keys
@@ -339,6 +347,7 @@ For example, the contents of elm.js in `elm make src/Main.elm --output elm.js`.
 viewGraph : Dict String (Set String) -> Html msg
 viewGraph functions =
     let
+        dot : String
         dot =
             Graph.DOT.outputWithStylesAndAttributes
                 { rankdir = Graph.DOT.TB
@@ -525,6 +534,7 @@ makeGraph functions =
         getId name =
             Dict.get name ids
 
+        nodes : List (Node NodeData)
         nodes =
             functionsWithIds
                 |> List.map
@@ -532,10 +542,11 @@ makeGraph functions =
                         Node id (functionNameToNodeData (parseFunctionName name))
                     )
 
+        edges : List (Edge ())
         edges =
             functionsWithIds
                 |> List.concatMap
-                    (\( fromId, name, references ) ->
+                    (\( fromId, _, references ) ->
                         references
                             |> Set.toList
                             |> List.filterMap
@@ -569,6 +580,7 @@ parseSearch string =
 matchFunction : Search -> String -> Bool
 matchFunction search functionNameString =
     let
+        functionName : FunctionName
         functionName =
             parseFunctionName functionNameString
     in

@@ -4,9 +4,10 @@
     "postinstall": "elm-tooling install",
     "start": "elm-watch hot",
     "build": "elm-watch make --optimize",
-    "test": "prettier --check . && elm-format --validate ."
+    "test": "prettier --check . && elm-format --validate . && elm-review"
   },
   "devDependencies": {
+    "elm-review": "2.7.2",
     "elm-tooling": "1.8.0",
     "elm-watch": "1.0.0-beta.9",
     "esbuild": "0.14.38",
